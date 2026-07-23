@@ -91,8 +91,8 @@ Sistem evaluasi komprehensif dengan 5 metrik:
 
 1. **Clone repository**
 ```bash
-git clone <repository-url>
-cd tokoCabai
+git clone https://github.com/natsrululum37/Multi-Agent-Commodity-Intelligence-System.git
+cd Multi-Agent-Commodity-Intelligence-System
 ```
 
 2. **Buat virtual environment**

@@ -18,6 +18,18 @@
 
 ---
 
+## 👥 Anggota Kelompok
+
+| No | Nama | NIM | Pembagian Tugas |
+|----|------|-----|-----------------|
+| 1 | [Nama Anggota 1] | [NIM 1] | • Data preprocessing & cleaning<br>• Feature engineering & exploratory analysis<br>• Visualisasi data (matplotlib/seaborn)<br>• Data Agent implementation<br>• Documentation & report writing |
+| 2 | [Nama Anggota 2] | [NIM 2] | • Multi-Agent Architecture design<br>• Prediction models (XGBoost, LightGBM, RandomForest)<br>• RAG system implementation (FAISS + LLM)<br>• Evaluator & Coordinator agents<br>• API development & deployment |
+
+**Total Anggota**: 2 Orang  
+**Beban Kerja**: 50% - 50% (Seimbang)
+
+---
+
 ## 🎯 1. Studi Kasus Enterprise
 
 ### Masalah Bisnis
@@ -454,19 +466,35 @@ def measure_efficiency(duration_seconds):
 
 ### Grafik yang Dihasilkan
 
-1. **price_comparison.png**
-   - Bar chart perbandingan rata-rata harga semua komoditas
-   - Menunjukkan Cabai Rawit Merah termahal, Cabai Merah Keriting termurah
+#### 6.1 Perbandingan Harga Rata-rata Komoditas
+![Price Comparison](reports/price_comparison.png)
+*Gambar 1: Perbandingan rata-rata harga semua komoditas cabai*
 
-2. **price_{commodity}.png** (4 file)
-   - Line chart harga per hari untuk masing-masing komoditas
-   - Moving average 7-day untuk smooth trend
-   - Highlight highest & lowest prices
+#### 6.2 Tren Harga Per Komoditas
 
-3. **evaluation_metrics.png**
-   - Radar chart 5 metrik evaluasi
-   - Gauge charts untuk setiap metric
-   - Overall score visualization
+**Cabai Merah Besar:**
+![Cabai Merah Besar](reports/price_cabai_merah_besar.png)
+*Gambar 2: Tren harga Cabai Merah Besar dengan moving average 7-day*
+
+**Cabai Merah Keriting:**
+![Cabai Merah Keriting](reports/price_cabai_merah_keriting.png)
+*Gambar 3: Tren harga Cabai Merah Keriting dengan moving average 7-day*
+
+**Cabai Rawit Hijau:**
+![Cabai Rawit Hijau](reports/price_cabai_rawit_hijau.png)
+*Gambar 4: Tren harga Cabai Rawit Hijau dengan moving average 7-day*
+
+**Cabai Rawit Merah:**
+![Cabai Rawit Merah](reports/price_cabai_rawit_merah.png)
+*Gambar 5: Tren harga Cabai Rawit Merah dengan moving average 7-day*
+
+#### 6.3 Evaluasi Metrics
+![Evaluation Metrics](reports/evaluation_metrics.png)
+*Gambar 6: Radar chart dan gauge untuk 5 metrik evaluasi sistem*
+
+---
+
+**Catatan**: Gambar di atas dapat diregenerate dengan menjalankan `python main.py` atau `python src/models/visualization.py`.
 
 ---
 
