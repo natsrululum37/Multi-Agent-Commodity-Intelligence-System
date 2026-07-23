@@ -1,0 +1,29 @@
+# Environment variables
+.env
+
+# Virtual environment
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Reports & outputs (generated data)
+reports/*.png
+reports/*.csv
+reports/*.json
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/

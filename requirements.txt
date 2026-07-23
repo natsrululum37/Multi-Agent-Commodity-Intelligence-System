@@ -1,0 +1,33 @@
+# Multi-Agent Commodity Intelligence System - Dependencies
+# UAS Data Mining ST167 - Universitas AMIKOM Yogyakarta
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Machine Learning
+scikit-learn>=1.3.0
+
+# Embeddings and Vector DB
+sentence-transformers>=2.2.0
+faiss-cpu>=1.7.4
+
+# LLM Integration
+groq>=0.4.0
+python-dotenv>=1.0.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.13.0
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Code Quality
+black>=23.0.0
+ruff>=0.1.0
+
+# API (optional)
+fastapi>=0.100.0
+uvicorn>=0.23.0
