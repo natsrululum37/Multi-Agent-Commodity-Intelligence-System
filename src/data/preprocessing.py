@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-from typing import Optional
+from typing import Optional, Dict, List, Tuple
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -26,7 +26,9 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Tambahkan fitur baru untuk analisis.
+    """Tambahkan fitur baru untuk analisis - PER KOMODITAS.
+
+    Fitur rolling window dihitung terpisah per komoditas agar tidak tercampur.
 
     Args:
         df: DataFrame yang sudah dibersihkan.
@@ -34,25 +36,32 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame dengan fitur tambahan.
     """
-    featured_df = df.copy()
+    featured_dfs = []
 
-    # Ekstrak fitur waktu
-    featured_df["year"] = featured_df["tanggal"].dt.year
-    featured_df["month"] = featured_df["tanggal"].dt.month
-    featured_df["day_of_week"] = featured_df["tanggal"].dt.dayofweek
-    featured_df["day_of_month"] = featured_df["tanggal"].dt.day
+    # Group by komoditas untuk memastikan rolling window tidak tercampur
+    for commodity, group in df.groupby("nama_komoditas"):
+        g = group.sort_values("tanggal").copy()
 
-    # Rolling average (7 hari dan 30 hari)
-    featured_df["rolling_avg_7d"] = featured_df["harga"].rolling(window=7, min_periods=1).mean()
-    featured_df["rolling_avg_30d"] = featured_df["harga"].rolling(window=30, min_periods=1).mean()
+        # Ekstrak fitur waktu
+        g["year"] = g["tanggal"].dt.year
+        g["month"] = g["tanggal"].dt.month
+        g["day_of_week"] = g["tanggal"].dt.dayofweek
+        g["day_of_month"] = g["tanggal"].dt.day
 
-    # Perubahan harga harian (%)
-    featured_df["price_change"] = featured_df["harga"].pct_change().fillna(0)
+        # Rolling average (7 hari dan 30 hari) - PER KOMODITAS
+        g["rolling_avg_7d"] = g["harga"].rolling(window=7, min_periods=1).mean()
+        g["rolling_avg_30d"] = g["harga"].rolling(window=30, min_periods=1).mean()
 
-    # Perubahan harga mingguan (%)
-    featured_df["weekly_change"] = featured_df["harga"].pct_change(periods=7).fillna(0)
+        # Perubahan harga harian (%)
+        g["price_change"] = g["harga"].pct_change().fillna(0)
 
-    return featured_df
+        # Perubahan harga mingguan (%)
+        g["weekly_change"] = g["harga"].pct_change(periods=7).fillna(0)
+
+        featured_dfs.append(g)
+
+    # Gabungkan semua komoditas kembali
+    return pd.concat(featured_dfs, ignore_index=True)
 
 
 def prepare_training_data(
@@ -60,7 +69,7 @@ def prepare_training_data(
     target_col: str = "harga",
     lookback_days: int = 7,
 ) -> tuple[pd.DataFrame, pd.Series]:
-    """Siapkan data untuk training model prediksi.
+    """Siapkan data untuk training model prediksi - PER KOMODITAS.
 
     Args:
         df: DataFrame dengan fitur tambahan.
@@ -70,11 +79,19 @@ def prepare_training_data(
     Returns:
         Tuple (X, y) untuk training.
     """
-    featured_df = df.copy()
+    featured_dfs = []
 
-    # Buat fitur lag
-    for i in range(1, lookback_days + 1):
-        featured_df[f"lag_{i}d"] = featured_df[target_col].shift(i)
+    # Proses per komoditas
+    for commodity, group in df.groupby("nama_komoditas"):
+        g = group.copy()
+
+        # Buat fitur lag per komoditas
+        for i in range(1, lookback_days + 1):
+            g[f"lag_{i}d"] = g[target_col].shift(i)
+
+        featured_dfs.append(g)
+
+    featured_df = pd.concat(featured_dfs, ignore_index=True)
 
     # Drop rows yang memiliki NaN karena lag
     featured_df = featured_df.dropna()
@@ -91,27 +108,59 @@ def prepare_training_data(
 
 
 def get_price_statistics(df: pd.DataFrame) -> dict:
-    """Hitung statistik harga per bulan.
+    """Hitung statistik harga per bulan - PER KOMODITAS.
 
     Args:
         df: DataFrame berisi data harga.
 
     Returns:
-        Dictionary berisi statistik per bulan.
+        Dictionary berisi statistik per bulan per komoditas.
     """
-    df_copy = df.copy()
-    df_copy["month"] = df_copy["tanggal"].dt.to_period("M")
-
-    monthly_stats = df_copy.groupby("month")["harga"].agg(["min", "max", "mean", "std"]).reset_index()
-
     result = {}
-    for _, row in monthly_stats.iterrows():
-        month_key = str(row["month"])
-        result[month_key] = {
-            "min": float(row["min"]),
-            "max": float(row["max"]),
-            "mean": float(row["mean"]),
-            "std": float(row["std"]),
+
+    for commodity, group in df.groupby("nama_komoditas"):
+        g = group.copy()
+        g["month"] = g["tanggal"].dt.to_period("M")
+
+        monthly_stats = g.groupby("month")["harga"].agg(["min", "max", "mean", "std"]).reset_index()
+
+        result[commodity] = {}
+        for _, row in monthly_stats.iterrows():
+            month_key = str(row["month"])
+            result[commodity][month_key] = {
+                "min": float(row["min"]),
+                "max": float(row["max"]),
+                "mean": float(row["mean"]),
+                "std": float(row["std"]),
+            }
+
+    return result
+
+
+def get_commodity_stats(df: pd.DataFrame) -> Dict[str, Dict]:
+    """Hitung statistik ringkas per komoditas.
+
+    Args:
+        df: DataFrame berisi data harga.
+
+    Returns:
+        Dictionary berisi statistik per komoditas.
+        Contoh: {"Cabai Merah Besar,1 kg": {"min": ..., "max": ..., "mean": ..., "std": ...}, ...}
+    """
+    result = {}
+
+    for commodity, group in df.groupby("nama_komoditas"):
+        result[commodity] = {
+            "min": float(group["harga"].min()),
+            "max": float(group["harga"].max()),
+            "mean": float(group["harga"].mean()),
+            "median": float(group["harga"].median()),
+            "std": float(group["harga"].std()),
+            "record_count": len(group),
+            "date_range": (
+                str(group["tanggal"].min()),
+                str(group["tanggal"].max()),
+            ),
         }
 
     return result

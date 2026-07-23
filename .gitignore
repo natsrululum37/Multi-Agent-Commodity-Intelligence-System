@@ -1,20 +1,38 @@
 # Environment variables
 .env
+.env.*
+!.env.example
 
 # Virtual environment
 .venv/
 venv/
+env/
+__pycache__/
 
 # Python
-__pycache__/
 *.py[cod]
 *.egg-info/
+dist/
+build/
+*.egg
+*.whl
+
+# Cache & temporary files
+.cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+*.pyc
+*.pyo
+__pycache__
 
 # IDE
 .vscode/
 .idea/
-
-# OS
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
 
@@ -24,6 +42,33 @@ reports/*.csv
 reports/*.json
 
 # Tests
-.pytest_cache/
 .coverage
 htmlcov/
+.coverage.*
+coverage.xml
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Logs
+*.log
+
+# Model files
+*.h5
+*.pth
+*.pt
+*.onnx
+*.pb
+
+# Docker
+docker-compose.override.yml
+
+# Local development
+local.env

@@ -103,30 +103,133 @@ class EvaluatorAgent(BaseAgent):
         context_lower = context.lower()
 
         # Cek relevansi: apakah respons menjawab pertanyaan?
-        question_keywords = set(question.lower().split())
-        relevant_words = sum(1 for word in question_keywords if word in response_lower and len(word) > 3)
+        import re
+        # Clean question dari punctuation tapi pertahankan hyphen
+        cleaned_question = re.sub(r'[^\w\s\-]', '', question).lower()
+        
+        # Filter stopwords dan kata-kata tidak relevan
+        stopwords = {'untuk', 'dan', 'di', 'yang', 'dari', 'pada', 'ke', 'atau', 'tidak',
+                     'apa', 'mana', 'ini', 'itu', 'ada', 'dengan', 'adalah', 'bagaimana',
+                     'berapa', 'bila', 'bila', 'jika', 'saya', 'kamu', 'kita', 'mereka',
+                     'yang', 'yg', 'dr', 'yg', 'yg'}
+        
+        question_keywords = set(w for w in cleaned_question.split() 
+                               if len(w) > 3 and w not in stopwords)
+        
+        relevant_words = sum(1 for word in question_keywords if word in response_lower)
         relevance_score = min(relevant_words / max(len(question_keywords), 1), 1.0)
 
         # Cek groundedness: apakah respons berbasis konteks?
+        import re
+        
+        # 1. Numeric matching (paling penting untuk data-driven QA)
+        def normalize_number(s):
+            return re.sub(r'[.,]', '', s.strip())
+        
+        context_numbers = [normalize_number(n) for n in re.findall(r'\d[\d,.]*', context)]
+        answer_numbers = [normalize_number(n) for n in re.findall(r'\d[\d,.]*', response)]
+        
+        unique_context_nums = set(context_numbers)
+        unique_answer_nums = set(answer_numbers)
+        
+        # Direct match
+        matched_numbers = sum(1 for n in unique_context_nums if any(n in an for an in unique_answer_nums))
+        
+        # Fuzzy match (prefix-based untuk angka yang bisa match sebagian)
+        fuzzy_matched = 0
+        for cn in unique_context_nums:
+            if not any(cn in an for an in unique_answer_nums):
+                for an in unique_answer_nums:
+                    if len(cn) >= 4 and (cn[:4] in an or an[:4] in cn):
+                        fuzzy_matched += 1
+        
+        total_matched = matched_numbers + fuzzy_matched
+        
+        # Smart number grounding dengan 2 strategi:
+        # Strategi A: Recall - berapa % angka context yang ada di answer
+        # Strategi B: Precision-like - answer punya angka yang valid dari context
+        if len(unique_context_nums) == 0:
+            number_grounding = 1.0
+        elif len(unique_answer_nums) == 0:
+            number_grounding = 0.3
+        else:
+            # Recall
+            recall = total_matched / len(unique_context_nums)
+            # Precision: berapa % angka answer yang ada di context
+            answer_in_context = sum(1 for an in unique_answer_nums if any(an in cn for cn in unique_context_nums))
+            precision = answer_in_context / len(unique_answer_nums)
+            
+            # F1-like score dengan boost untuk jawaban yang menggunakan data
+            # Jika matched >= 2, anggap grounded dengan baik
+            if matched_numbers >= 2:
+                base_score = 0.7 + 0.3 * (recall + precision) / 2
+            elif matched_numbers >= 1:
+                base_score = 0.6 + 0.4 * (recall + precision) / 2
+            else:
+                base_score = (recall + precision) / 2
+            
+            # Boost jika ada angka penting (Rp, %, tahun)
+            has_currency_in_answer = "rp" in response.lower() or "%" in response
+            has_year = any(len(n) == 4 and n.startswith(("20", "19")) for n in unique_answer_nums)
+            if has_currency_in_answer or has_year:
+                base_score = min(base_score + 0.1, 1.0)
+            
+            number_grounding = min(max(base_score, 0.0), 1.0)
+        
+        # 2. Keyword overlap
+        important_keywords = ['harga', 'cabai', 'merah', 'pasar', 'beringharjo', 'rata-rata', 
+                              'tertinggi', 'terendah', 'terbaik', 'paling', 'bulan', 'tahun',
+                              'minimum', 'maksimum', 'median', 'deviasi', 'volatilitas', 'tren',
+                              'average', 'mean', 'total', 'catatan', 'periode']
+        kw_in_context = [kw for kw in important_keywords if kw in context_lower]
+        kw_in_answer = [kw for kw in important_keywords if kw in response_lower]
+        
+        if len(kw_in_context) == 0:
+            keyword_coverage = 1.0
+        else:
+            keyword_coverage = min(len(kw_in_answer) / len(kw_in_context), 1.0)
+        
+        # 3. Context word matching (exact)
         context_words = [w for w in context_lower.split() if len(w) > 4]
-        matched_context = sum(1 for word in context_words[:50] if word in response_lower)
-        groundedness_score = matched_context / max(len(context_words[:50]), 1)
+        matched_words = sum(1 for word in context_words[:50] if word in response_lower)
+        word_matching = matched_words / max(len(context_words[:50]), 1)
+        
+        # Combined groundedness - lebih mementingkan angka dan keyword
+        groundedness_score = (
+            number_grounding * 0.45 +
+            keyword_coverage * 0.35 +
+            word_matching * 0.20
+        )
+        groundedness_score = min(max(groundedness_score, 0.0), 1.0)
 
-        # Cek kelengkapan
-        has_numbers = bool(response_lower.replace(",", "").replace(".", "").replace("-", "").replace("rp", "").isdigit())
-        completeness_score = min(relevance_score + groundedness_score * 0.5, 1.0)
+        # Cek kelengkapan - jawaban punya angka/numerik
+        has_numbers = any(c.isdigit() for c in response)
+        has_currency = "rp" in response_lower or "rupiah" in response_lower
+        completeness_score = 1.0 if (has_numbers and has_currency) else (0.7 if has_numbers else 0.4)
 
         # Cek kejelasan (response length dan struktur)
         words = response.split()
-        clarity_score = min(len(words) / 100.0, 1.0)  # Idealnya 100+ kata
+        word_count = len(words)
+        # Target ideal: 50-200 kata
+        if word_count < 20:
+            clarity_score = word_count / 20.0
+        elif word_count <= 200:
+            clarity_score = 1.0
+        else:
+            clarity_score = max(0.8, 1.0 - (word_count - 200) / 500.0)
+
+        # Cek tidak ada error indicators
+        has_error = any(err in response_lower for err in ["api error", "catatan: api", "rate limit", "invalid api"])
+        error_penalty = 0.3 if has_error else 0.0
 
         # Overall score (weighted average)
         overall_score = (
-            relevance_score * 0.35 +
-            groundedness_score * 0.30 +
-            completeness_score * 0.20 +
-            clarity_score * 0.15
-        )
+            relevance_score * 0.30 +
+            groundedness_score * 0.25 +
+            completeness_score * 0.25 +
+            clarity_score * 0.20
+        ) - error_penalty
+        overall_score = max(0.0, min(1.0, overall_score))
 
         return {
             "relevance": round(relevance_score, 4),
@@ -135,6 +238,7 @@ class EvaluatorAgent(BaseAgent):
             "clarity": round(clarity_score, 4),
             "overall_score": round(overall_score, 4),
             "has_numbers": has_numbers,
+            "has_error": has_error,
         }
 
     def evaluate_effectiveness(self, analysis_results: Dict[str, Any]) -> Dict[str, Any]:
@@ -184,22 +288,35 @@ class EvaluatorAgent(BaseAgent):
             Dictionary berisi evaluasi explainability.
         """
         insights = analysis_results.get("data_insights", [])
-        recommendations = analysis_results.get("recommendations", [])
+        recommendations_raw = analysis_results.get("recommendations", {})
+
+        # Flatten recommendations dari dict per komoditas ke list
+        if isinstance(recommendations_raw, dict):
+            recommendations_flat = []
+            for recs in recommendations_raw.values():
+                if isinstance(recs, list):
+                    recommendations_flat.extend(recs)
+                else:
+                    recommendations_flat.append(str(recs))
+        elif isinstance(recommendations_raw, list):
+            recommendations_flat = recommendations_raw
+        else:
+            recommendations_flat = []
 
         # Cek apakah ada penjelasan numerik
         numeric_explanations = 0
-        for item in insights + recommendations:
+        for item in insights + recommendations_flat:
             if any(char.isdigit() for char in item):
                 numeric_explanations += 1
 
-        total_explanations = len(insights) + len(recommendations)
-        explainability_score = numeric_explanations / max(total_explanations, 1)
+        total_explanations = max(len(insights) + len(recommendations_flat), 1)
+        explainability_score = numeric_explanations / total_explanations
 
         return {
             "total_explanations": total_explanations,
             "with_numbers": numeric_explanations,
             "explainability_score": round(explainability_score, 4),
-            "good_explainability": explainability_score >= 0.5,
+            "good_explainability": explainability_score >= 0.9,
         }
 
     def evaluate_hallucination(self, rag_responses: List[Dict], ground_truth: str = "") -> Dict[str, Any]:
@@ -225,24 +342,30 @@ class EvaluatorAgent(BaseAgent):
 
             # Indikator halusinasi:
             # 1. Confidence sangat rendah tapi ada jawaban
-            if confidence < 0.2 and len(answer) > 100:
-                hallucination_indicators += 1
-            # 2. Tidak ada source yang jelas
+            if confidence < 0.15 and len(answer) > 100:
+                hallucination_indicators += 1.0
+            # 2. Tidak ada source yang jelas (tapi bukan penalty besar karena semantic search bisa match)
             if not sources or all(s == "unknown" for s in sources):
-                hallucination_indicators += 0.5
+                hallucination_indicators += 0.3
             # 3. Jawaban terlalu panjang tanpa angka (curiga hallucination)
             words = answer.split()
             has_numbers = any(c.isdigit() for c in answer)
-            if len(words) > 300 and not has_numbers:
+            if len(words) > 400 and not has_numbers:
+                hallucination_indicators += 0.5
+            # 4. Error indicators
+            error_keywords = ["api error", "rate limit", "invalid api key"]
+            answer_lower = answer.lower()
+            if any(kw in answer_lower for kw in error_keywords):
                 hallucination_indicators += 0.5
 
+        # Normalisasi: maks 1 indikator per response
         hallucination_rate = min(hallucination_indicators / total, 1.0)
 
         return {
             "hallucination_rate": round(hallucination_rate, 4),
             "estimated_hallucinated": round(hallucination_indicators, 2),
             "total_responses": total,
-            "low_hallucination": hallucination_rate < 0.3,
+            "low_hallucination": hallucination_rate < 0.2,
         }
 
     def generate_comprehensive_report(self, analysis_results: Dict[str, Any]) -> Dict[str, Any]:
@@ -292,7 +415,13 @@ class EvaluatorAgent(BaseAgent):
 
         # 3. Efficiency
         exec_time = analysis_results.get("execution_time", 0)
-        efficiency_score = max(0, min(1.0, 1.0 - exec_time / 30.0))
+        # Threshold: ideal < 5s (score 1.0), max acceptable 20s (score 0.5)
+        if exec_time <= 5:
+            efficiency_score = 1.0
+        elif exec_time <= 20:
+            efficiency_score = 1.0 - ((exec_time - 5) / 15.0) * 0.5
+        else:
+            efficiency_score = max(0.3, 0.5 - ((exec_time - 20) / 60.0))
         evaluations.append({
             "metric": "Efficiency - Waktu Eksekusi",
             "category": "efficiency",
@@ -363,7 +492,7 @@ class EvaluatorAgent(BaseAgent):
         ]
 
         for m in metrics:
-            icon = "✅" if m["score"] >= 0.6 else "⚠️"
+            icon = "✅" if m["score"] >= 0.9 else ("⚠️" if m["score"] >= 0.7 else "❌")
             lines.append(f"  {icon} {m['metric']}: {m['score']:.2%}")
 
         lines.append("")

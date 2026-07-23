@@ -29,11 +29,19 @@ def run_demo():
 
     # Generate visualisasi
     print("\n📊 Generating visualizations...")
-    from src.models.visualization import plot_price_history, plot_comparison, plot_evaluation_metrics
+    from src.models.visualization import plot_price_history, plot_price_comparison, plot_per_commodity, plot_comparison, plot_evaluation_metrics
+    
     try:
-        plot_price_history(coord.data_agent.data, Config.REPORTS_PATH / "price_history.png")
-        if "evaluations" in results and results["evaluations"]:
-            plot_evaluation_metrics(results["evaluations"], Config.REPORTS_PATH / "evaluation_metrics.png")
+        # 1. Visualisasi perbandingan semua komoditas
+        plot_price_comparison(coord.data_agent.data, Config.REPORTS_PATH / "price_comparison.png")
+        
+        # 2. Visualisasi detail per komoditas
+        commodities = coord.data_agent.data['nama_komoditas'].unique()
+        for commodity in commodities:
+            short_name = commodity.split(',')[0]  # Hapus ",1 kg"
+            filename = f"price_{short_name.lower().replace(' ', '_')}.png"
+            plot_per_commodity(coord.data_agent.data, commodity, Config.REPORTS_PATH / filename)
+            
     except Exception as e:
         print(f"  ⚠️  Warning: Gagal membuat visualisasi: {e}")
 
@@ -46,61 +54,95 @@ def run_demo():
     analysis = results.get("data_analysis", {})
     print("\n📊 DATA ANALYSIS:")
     print(f"  Total records: {analysis.get('total_records', 'N/A')}")
+    print(f"  Unique commodities: {analysis.get('unique_commodities', 'N/A')}")
     date_range = analysis.get('date_range', ('N/A', 'N/A'))
     if isinstance(date_range, (list, tuple)):
         print(f"  Date range: {date_range[0]} → {date_range[1]}")
     else:
         print(f"  Date range: {date_range}")
-
-    price_stats = analysis.get("price_stats", {})
-    print(f"  Min price: Rp {price_stats.get('min', 0):,.0f}")
-    print(f"  Max price: Rp {price_stats.get('max', 0):,.0f}")
-    print(f"  Mean price: Rp {price_stats.get('mean', 0):,.0f}")
-    print(f"  Volatility: {analysis.get('volatility', 0):.2f}%")
+    
+    # Tampilkan statistik PER KOMODITAS
+    commodity_stats = analysis.get("commodity_stats", {})
+    if commodity_stats:
+        print("\n  📈 Statistik per Komoditas:")
+        for name, stats in commodity_stats.items():
+            short_name = name.split(',')[0]
+            print(f"    • {short_name}:")
+            print(f"      Avg: Rp {stats['mean']:,.0f} | Min: Rp {stats['min']:,.0f} | Max: Rp {stats['max']:,.0f}")
+            print(f"      Volatility: {analysis.get('volatility_per_commodity', {}).get(name, 0):.2f}%")
 
     # Insights
     insights = results.get("data_insights", [])
     print("\n💡 INSIGHTS:")
     if insights:
         for i, insight in enumerate(insights, 1):
-            print(f"  {i}. {insight}")
+            if insight.strip():  # Skip empty lines
+                print(f"  {i}. {insight}")
     else:
         print("  (tidak ada insights)")
 
-    # Predictions
-    prediction = results.get("prediction", {})
-    print("\n🔮 PREDICTIONS:")
-    print(f"  Consensus Trend: {prediction.get('consensus_trend', 'unknown').upper()}")
-    method_results = prediction.get("method_results", {})
-    if method_results:
-        ma = method_results.get("moving_average", {})
-        print(f"  Moving Average: {ma.get('change_pct', 0):+.2f}% ({ma.get('trend', '-')})")
-        rg = method_results.get("regression", {})
-        print(f"  Regression Slope: {rg.get('slope', 0):+.0f} ({rg.get('trend', '-')})")
-        mm = method_results.get("momentum", {})
-        print(f"  7-day Momentum: {mm.get('7d_change_pct', 0):+.2f}% ({mm.get('trend', '-')})")
-    next_price = prediction.get("next_predicted_price")
-    if next_price:
-        print(f"  Next predicted price: Rp {next_price:,.0f}")
-    if prediction.get("current_price"):
-        print(f"  Current price: Rp {prediction['current_price']:,.0f}")
-
-    # Recommendations
-    recommendations = results.get("recommendations", [])
-    print("\n📋 RECOMMENDATIONS:")
-    if recommendations:
-        for i, rec in enumerate(recommendations, 1):
-            print(f"  {i}. {rec}")
+    # Predictions PER KOMODITAS
+    predictions = results.get("predictions", {})
+    print("\n🔮 PREDICTIONS PER KOMODITAS:")
+    if predictions:
+        for commodity, trend in predictions.items():
+            short_name = commodity.split(",")[0]
+            print(f"\n  📈 {short_name}:")
+            print(f"     Consensus Trend: {trend.get('consensus_trend', 'unknown').upper()}")
+            method_results = trend.get("method_results", {})
+            if method_results:
+                ma = method_results.get("moving_average", {})
+                print(f"     Moving Average: {ma.get('change_pct', 0):+.2f}% ({ma.get('trend', '-')})")
+                rg = method_results.get("regression", {})
+                print(f"     Regression Slope: {rg.get('slope', 0):+.0f} ({rg.get('trend', '-')})")
+                mm = method_results.get("momentum", {})
+                print(f"     7-day Momentum: {mm.get('7d_change_pct', 0):+.2f}% ({mm.get('trend', '-')})")
+            next_price = trend.get("next_predicted_price")
+            if next_price:
+                print(f"     Next predicted price: Rp {next_price:,.0f}")
+            if trend.get("current_price"):
+                print(f"     Current price: Rp {trend['current_price']:,.0f}")
     else:
-        print("  (tidak ada rekomendasi)")
+        print("  (tidak ada prediksi)")
+
+    # Model Metrics PER KOMODITAS
+    model_metrics = results.get("model_metrics", {})
+    if model_metrics:
+        print("\n📊 MODEL PERFORMANCE (ML Training) PER KOMODITAS:")
+        for commodity, metrics in model_metrics.items():
+            short_name = commodity.split(",")[0]
+            print(f"\n  🤖 {short_name}:")
+            print(f"     MAE: Rp {metrics.get('mae', 0):,.0f} | RMSE: Rp {metrics.get('rmse', 0):,.0f}")
+            print(f"     R² Score: {metrics.get('r2', 0):.4f} | MAPE: {metrics.get('mape', 0):.2f}%")
+
+    # Recommendations PER KOMODITAS
+    all_recommendations = results.get("recommendations", {})
+    if all_recommendations:
+        print("\n📋 RECOMMENDATIONS PER KOMODITAS:")
+        for commodity, recs in all_recommendations.items():
+            short_name = commodity.split(",")[0]
+            print(f"\n  📌 {short_name}:")
+            if recs:
+                for i, rec in enumerate(recs, 1):
+                    print(f"     {i}. {rec}")
+            else:
+                print("     (tidak ada rekomendasi)")
 
     # RAG Responses
     rag_results = results.get("rag_responses", [])
     print("\n🤖 RAG RESPONSES:")
     if rag_results:
         for rag in rag_results:
-            print(f"\n  Q: {rag.get('question', '')}")
+            question = rag.get('question', '')
+            # Tampilkan hanya jika pertanyaan mengandung komoditas spesifik
+            for commodity in coord.data_agent.data["nama_komoditas"].unique():
+                if commodity in question:
+                    short_name = commodity.split(",")[0]
+                    print(f"\n  📌 {short_name}:")
+                    break
+            
             answer = rag.get("answer", "")
+            print(f"  Q: {rag.get('question', '')}")
             print(f"  A: {answer[:300]}{'...' if len(answer) > 300 else ''}")
             confidence = rag.get("confidence", 0)
             sources = rag.get("sources", [])
@@ -127,6 +169,13 @@ def run_demo():
             print(f"  {icon} {metric}: {score:.2%}")
     else:
         print("  (tidak ada evaluasi)")
+    
+    # Generate evaluation metrics visualization
+    if evaluations:
+        try:
+            plot_evaluation_metrics(evaluations, Config.REPORTS_PATH / "evaluation_metrics.png")
+        except Exception as e:
+            print(f"  ⚠️  Warning: Gagal membuat visualisasi evaluasi: {e}")
 
     print(f"\n  Average Score: {avg_score:.2%}")
     print(f"  Weighted Score: {weighted_score:.2%}")
@@ -134,13 +183,6 @@ def run_demo():
     # Execution time
     exec_time = results.get("execution_time", 0)
     print(f"\n⏱️  Execution Time: {exec_time:.2f} seconds")
-
-    # Model metrics
-    if "model_metrics" in results:
-        print("\n📊 MODEL PERFORMANCE (ML Training):")
-        metrics = results["model_metrics"]
-        for key, value in metrics.items():
-            print(f"  {key}: {value}")
 
     print("\n" + "=" * 70)
     print("Demo selesai!")

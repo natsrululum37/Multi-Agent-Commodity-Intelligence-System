@@ -25,8 +25,10 @@ def test_data_agent_analysis():
     agent = DataAgent()
     agent.load_and_clean("cabai.csv")
     analysis = agent.analyze()
-    assert "price_stats" in analysis
-    assert "volatility" in analysis
+    assert "total_records" in analysis
+    assert "commodity_stats" in analysis
+    assert "volatility_per_commodity" in analysis
+    assert len(analysis["commodity_stats"]) > 0
 
 
 def test_data_agent_insights():

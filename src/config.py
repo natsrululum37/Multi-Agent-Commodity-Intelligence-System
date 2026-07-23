@@ -21,12 +21,11 @@ class Config:
     # File paths
     DATA_PATH = BASE_DIR / "cabai.csv"
     REPORTS_PATH = BASE_DIR / "reports"
-    MODEL_PATH = BASE_DIR / "models"
+    CACHE_DIR = BASE_DIR / ".cache"
+    CACHE_PATH = CACHE_DIR  # Add alias
 
     # RAG Configuration
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-    FAISS_INDEX_PATH = BASE_DIR / "vectorstore" / "faiss_index.bin"
-    CONTEXT_DOCUMENTS_PATH = BASE_DIR / "vectorstore" / "documents.json"
 
     # Model Configuration
     TEST_SIZE = 0.2
@@ -36,6 +35,4 @@ class Config:
     def ensure_directories(cls) -> None:
         """Pastikan semua direktori yang dibutuhkan ada."""
         cls.REPORTS_PATH.mkdir(parents=True, exist_ok=True)
-        cls.MODEL_PATH.mkdir(parents=True, exist_ok=True)
-        cls.EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-        cls.FAISS_INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
+        cls.CACHE_DIR.mkdir(parents=True, exist_ok=True)
