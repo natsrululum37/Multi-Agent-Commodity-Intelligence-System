@@ -41,6 +41,10 @@ reports/*.png
 reports/*.csv
 reports/*.json
 
+# Laporan UAS (sensitive)
+laporan_uas.md
+soal_uas_pdm.md
+
 # Tests
 .coverage
 htmlcov/
