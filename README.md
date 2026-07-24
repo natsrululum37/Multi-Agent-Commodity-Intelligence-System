@@ -196,11 +196,9 @@ UAS Data Mining ST167 - Universitas AMIKOM Yogyakarta
 ## 📁 Struktur Proyek
 
 ```
-tokoCabai/
+Multi-Agent-Commodity-Intelligence-System/
 ├── main.py                      # Entry point utama
 ├── requirements.txt             # Dependensi proyek
-├── soal_uas_pdm.md             # Soal UAS
-├── AGENTS.md                   # Dokumentasi agents
 ├── README.md                   # File ini
 ├── .env.example                # Template API key
 ├── .gitignore                  # Git ignore rules
